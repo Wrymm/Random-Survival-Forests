@@ -115,21 +115,21 @@ class RandomSurvivalForest():
 			sampled_features = list(np.random.permutation(features))[:self.max_features] + ["time","event"]
 			self.build(sampled_x[sampled_features], self.trees[i], 0)
 
-	def compute_chf(self, row, tree):
+	def compute_survival(self, row, tree):
 		count = tree["count"]
 		t = tree["t"]
 		total = tree["total"]
 		h = 1
 		survivors = float(total)
 		for ti in t:
-			if ti <= row["time"]:
+			if ti <= row[self.time_column]:
 				h = h * (1 - count[(ti,1)] / survivors)
 			survivors = survivors - count[(ti,1)] - count[(ti,0)]
 		return h
 	
 	def predict_row(self, tree, row):
 		if "count" in tree:
-			return self.compute_chf(row, tree)
+			return self.compute_survival(row, tree)
 	
 		if row[tree["feature"]] > tree["median"]:
 			return self.predict_row(tree["right"], row)
@@ -137,8 +137,7 @@ class RandomSurvivalForest():
 			return self.predict_row(tree["left"], row)
 
 	def predict_proba(self, x):
-		assert "time" not in x.columns[:-1]
-		x.columns = list(x.columns)[:-1] + ["time"]
+		self.time_column = list(x.columns)[-1]
 		compute_trees = [x.apply(lambda u: self.predict_row(self.trees[i], u), axis=1) for i in range(self.n_trees)]
 		return sum(compute_trees) / self.n_trees
 
